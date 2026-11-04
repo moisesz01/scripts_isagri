@@ -1,0 +1,49 @@
+# ==========================================================
+# scripts_isagri - Python 3.10 en Windows Server 2012 (.bat)
+# ==========================================================
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# --- Variables de entorno (credenciales) ---
+.env
+*.env
+!.env_example
+
+# --- Carpetas temporales con las bases de datos descargadas ---
+# Sin "/" inicial: aplica a tmp/ en la raiz y en cualquier subcarpeta
+# (TablaActirep/tmp, TablaDocen/tmp, TablaEcri/tmp, TablaMvts/tmp, ...)
+tmp/
+
+# --- Ficheros de base de datos (por si se generan fuera de tmp/) ---
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.dbf
+*.DBF
+*.cdx
+*.CDX
+*.fpt
+*.FPT
+*.mdx
+*.MDX
+
+# --- Logs (raiz y subcarpetas) ---
+logs/
+*.log
+
+# --- IDEs ---
+.idea/
+.vscode/
+
+# --- Sistema operativo ---
+Thumbs.db
+desktop.ini
+.DS_Store

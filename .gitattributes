@@ -1,0 +1,21 @@
+# Finales de línea uniformes, sin depender de la configuración de cada equipo.
+# En el repositorio todo se guarda con LF.
+
+# Por defecto: Git detecta los archivos de texto y los normaliza
+* text=auto
+
+# Los .bat siempre con CRLF: cmd.exe puede fallar con LF (etiquetas, goto, call)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Código Python y configuración siempre con LF
+*.py  text eol=lf
+.env_example text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Binarios: no tocar nunca
+*.DB  binary
+*.db  binary
+*.dbf binary
+*.DBF binary
