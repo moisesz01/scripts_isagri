@@ -1,19 +1,24 @@
 @echo OFF
+setlocal
 
-rem Define here the path to your conda installation
+rem Ruta de la instalacion de conda y nombre del entorno
 set CONDAPATH=C:\ProgramData\anaconda3
-rem Define here the name of the environment
 set ENVNAME=geofolia
-
-rem The following command activates the base environment.
 
 if %ENVNAME%==base (set ENVPATH=%CONDAPATH%) else (set ENVPATH=%CONDAPATH%\envs\%ENVNAME%)
 
-rem Activate the conda environment
-call %CONDAPATH%\Scripts\activate.bat %ENVPATH%
+rem Activar el entorno de conda
+call "%CONDAPATH%\Scripts\activate.bat" "%ENVPATH%"
 
-rem Run a python script in that environment
-python C:\Users\Administrador\Documents\scripts_isagri\Compras\detalle_albaranes_compras.py
+rem Ejecutar el script. %~dp0 es la carpeta donde esta este .bat, asi que
+rem funciona sin importar donde se clone el repositorio ni desde donde se lance
+python "%~dp0Compras\detalle_albaranes_compras.py"
 
-rem Deactivate the environment
+rem Guardar el codigo de salida de Python antes de desactivar el entorno,
+rem para que el Programador de tareas sepa si fallo (0 = OK, 1 = error)
+set EXITCODE=%ERRORLEVEL%
+
+rem Desactivar el entorno
 call conda deactivate
+
+exit /b %EXITCODE%
