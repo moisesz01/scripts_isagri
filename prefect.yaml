@@ -1,0 +1,76 @@
+# ==========================================================
+# Deployments de Prefect para scripts_isagri: uno por cada .bat
+# del antiguo Programador de tareas.
+#
+# Registrar / actualizar (en la VM, desde la raíz del proyecto):
+#   /opt/isagri/venv/bin/prefect --no-prompt deploy --all
+#
+# HORARIOS: se gestionan desde el dashboard (Deployments -> el
+# deployment -> Schedules). Por eso aquí NO hay "schedules": al
+# volver a desplegar, Prefect conserva los horarios que ya tiene
+# cada deployment. Los horarios iniciales de una instalación nueva
+# se crean una sola vez con despliegue/crear_horarios_iniciales.py.
+# ==========================================================
+name: scripts_isagri
+prefect-version: 3.9.2
+
+# El código ya está en la VM: el worker solo tiene que situarse en su carpeta
+pull:
+  - prefect.deployments.steps.set_working_directory:
+      directory: /opt/isagri/scripts_isagri
+
+definitions:
+  pool: &pool
+    name: isagri-pool
+    job_variables: {}
+
+deployments:
+  # ------------------------- Paradox -> SQL Server -------------------------
+  - name: actirep
+    entrypoint: orquestacion/flujos.py:paradox_actirep
+    work_pool: *pool
+    concurrency_limit: 1
+    tags: [isagri, paradox]
+
+  - name: docen
+    entrypoint: orquestacion/flujos.py:paradox_docen
+    work_pool: *pool
+    concurrency_limit: 1
+    tags: [isagri, paradox]
+
+  - name: ecri
+    entrypoint: orquestacion/flujos.py:paradox_ecri
+    work_pool: *pool
+    concurrency_limit: 1
+    tags: [isagri, paradox]
+
+  - name: mvts
+    entrypoint: orquestacion/flujos.py:paradox_mvts
+    work_pool: *pool
+    concurrency_limit: 1
+    tags: [isagri, paradox]
+
+  - name: balan-balme
+    entrypoint: orquestacion/flujos.py:paradox_balan_balme
+    work_pool: *pool
+    concurrency_limit: 1
+    tags: [isagri, paradox]
+
+  # -------------------------------- Compras --------------------------------
+  - name: detalle-pedidos
+    entrypoint: orquestacion/flujos.py:compras_detalle_pedidos
+    work_pool: *pool
+    concurrency_limit: 1
+    tags: [isagri, compras]
+
+  - name: detalle-albaranes
+    entrypoint: orquestacion/flujos.py:compras_detalle_albaranes
+    work_pool: *pool
+    concurrency_limit: 1
+    tags: [isagri, compras]
+
+  - name: asociacion-factura-albaran
+    entrypoint: orquestacion/flujos.py:compras_asociacion_factura_albaran
+    work_pool: *pool
+    concurrency_limit: 1
+    tags: [isagri, compras]

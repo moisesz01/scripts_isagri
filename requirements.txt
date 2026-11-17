@@ -1,0 +1,8 @@
+# Dependencias del entorno de ejecución (venv de la VM Ubuntu).
+# Prefect debe tener la MISMA versión que la imagen del servidor
+# (PREFECT_VERSION en despliegue/.env).
+prefect==3.9.2
+pypxlib==2.5
+pyodbc==5.5.0
+python-dotenv
+requests

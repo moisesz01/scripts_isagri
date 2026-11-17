@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rendimiento Prefect ISAGRI</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f6f5f2;
+  --surface: #fcfcfb;
+  --border: #e3e1dc;
+  --grid: #ebe9e4;
+  --text: #0b0b0b;
+  --text-2: #52514e;
+  --text-3: #7a7974;
+  --cpu: #2a78d6;
+  --ram: #6250d6;
+  --run: rgba(11, 11, 11, 0.07);
+  --idle: rgba(27, 175, 122, 0.12);
+  --idle-ink: #127a55;
+  --good: #0a7d32;
+  --warn: #9a6500;
+  --accent-bg: #eef4fc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121211;
+    --surface: #1a1a19;
+    --border: #2f2f2c;
+    --grid: #262624;
+    --text: #f0efec;
+    --text-2: #c3c2b7;
+    --text-3: #918f86;
+    --cpu: #3987e5;
+    --ram: #9085e9;
+    --run: rgba(240, 239, 236, 0.08);
+    --idle: rgba(25, 158, 112, 0.18);
+    --idle-ink: #4fc597;
+    --good: #4cc26f;
+    --warn: #e0a83a;
+    --accent-bg: #1c2633;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121211; --surface: #1a1a19; --border: #2f2f2c; --grid: #262624;
+  --text: #f0efec; --text-2: #c3c2b7; --text-3: #918f86;
+  --cpu: #3987e5; --ram: #9085e9; --run: rgba(240, 239, 236, 0.08);
+  --idle: rgba(25, 158, 112, 0.18); --idle-ink: #4fc597;
+  --good: #4cc26f; --warn: #e0a83a; --accent-bg: #1c2633;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+header { margin-bottom: 28px; }
+.eyebrow { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); margin: 0 0 6px; }
+h1 { font-size: 30px; line-height: 1.2; margin: 0 0 10px; letter-spacing: -.01em; }
+h2 { font-size: 19px; margin: 0 0 4px; }
+.lede { font-size: 17px; color: var(--text-2); max-width: 760px; margin: 0; }
+.sub { color: var(--text-2); margin: 0 0 16px; font-size: 14px; max-width: 760px; }
+section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px 22px 18px; margin: 0 0 18px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 22px 0 0; }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.kpi .v { font-size: 26px; font-weight: 650; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.kpi .v small { font-size: 14px; font-weight: 500; color: var(--text-2); margin-left: 3px; }
+.kpi .l { font-size: 13px; color: var(--text-2); }
+.kpi .d { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.chart-wrap { position: relative; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { fill: var(--text-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+svg .ptitle { fill: var(--text-2); font-size: 12px; font-weight: 600; }
+.tip {
+  position: absolute; pointer-events: none; background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12.5px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12); white-space: nowrap; opacity: 0; transition: opacity .08s; z-index: 2;
+}
+.tip b { font-weight: 600; }
+.tip .row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.tip .sw { width: 10px; height: 3px; border-radius: 2px; display: inline-block; margin-right: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--text-2); margin: 0 0 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; width: 14px; height: 10px; border-radius: 2px; }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { padding: 8px 10px; border-bottom: 1px solid var(--grid); text-align: right; vertical-align: top; }
+th { color: var(--text-2); font-weight: 600; font-size: 12.5px; border-bottom-color: var(--border); cursor: pointer; user-select: none; white-space: nowrap; }
+th:first-child, td:first-child, th.t, td.t { text-align: left; }
+td.nw { white-space: nowrap; }
+.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.scroll-x .chart-wrap { min-width: 680px; }
+th[data-sort]::after { content: " ↕"; color: var(--text-3); font-weight: 400; }
+th.asc::after { content: " ↑"; color: var(--text); }
+th.desc::after { content: " ↓"; color: var(--text); }
+tbody tr:hover td { background: var(--accent-bg); }
+tbody tr.hl td { background: var(--accent-bg); }
+td.n { color: var(--text-3); width: 28px; }
+.ok { color: var(--good); font-weight: 600; }
+.note { font-size: 13px; color: var(--text-2); margin: 12px 0 0; }
+.callout { border-left: 3px solid var(--good); background: var(--accent-bg); padding: 10px 14px; border-radius: 0 8px 8px 0; font-size: 14px; margin: 14px 0 0; }
+.recs { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 8px; }
+.rec { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.rec .v { font-size: 20px; font-weight: 650; }
+.rec p { margin: 4px 0 0; font-size: 13.5px; color: var(--text-2); }
+details { margin-top: 4px; }
+summary { cursor: pointer; font-weight: 600; font-size: 15px; }
+details ul { color: var(--text-2); font-size: 14px; padding-left: 20px; }
+.bars .lbl { fill: var(--text-2); font-size: 12px; }
+.bars .val { fill: var(--text); font-size: 12px; font-weight: 600; }
+.bar { cursor: default; }
+.bar:hover rect.fill, .bar.hl rect.fill { opacity: .8; }
+.toolbar { display: flex; justify-content: flex-end; margin-bottom: -8px; }
+.toolbar button {
+  background: var(--surface); color: var(--text-2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 5px 10px; font: inherit; font-size: 13px; cursor: pointer;
+}
+.toolbar button:hover { color: var(--text); }
+footer { color: var(--text-3); font-size: 12.5px; text-align: center; margin-top: 24px; }
+@media (max-width: 560px) {
+  h1 { font-size: 24px; }
+  section { padding: 16px 14px 14px; }
+  .kpi .v { font-size: 22px; }
+}
+@media print {
+  body { background: #fff; }
+  section, .kpi { break-inside: avoid; }
+  .toolbar { display: none; }
+}
+</style>
+</head>
+<body>
+<main>
+  <div class="toolbar"><button id="tema" type="button" aria-label="Cambiar tema claro u oscuro">◐ Tema</button></div>
+  <header>
+    <p class="eyebrow">Informe de rendimiento · VM de Prefect · ISAGRI</p>
+    <h1>Las 8 sincronizaciones caben con holgura en una VM de 2 vCPU y 3,4 GB</h1>
+    <p class="lede" id="lede"></p>
+    <div class="kpis" id="kpis"></div>
+  </header>
+
+  <section>
+    <h2>Consumo de la VM durante la medición</h2>
+    <p class="sub">Primero 10 minutos en reposo, después las 8 ejecuciones, una cada 5 minutos aprox. Pasa el ratón (o el dedo) por la gráfica para ver cada muestra. Hora de Madrid.</p>
+    <div class="legend">
+      <span><i style="background:var(--idle)"></i>Reposo (antes de las ejecuciones)</span>
+      <span><i style="background:var(--run)"></i>Ejecución en curso (número = fila de la tabla de ejecuciones)</span>
+    </div>
+    <div class="scroll-x"><div class="chart-wrap" id="tiempo"></div></div>
+  </section>
+
+  <section>
+    <h2>En reposo y sincronizando</h2>
+    <p class="sub">Toda la VM: Docker, servidor de Prefect, PostgreSQL, worker y sistema operativo. CPU en % del total de los 2 núcleos.</p>
+    <div class="table-scroll"><table id="t-reposo"></table></div>
+  </section>
+
+  <section>
+    <h2>Duración de cada ejecución</h2>
+    <p class="sub" id="sub-dur"></p>
+    <div class="chart-wrap" id="duraciones"></div>
+  </section>
+
+  <section>
+    <h2>Detalle por ejecución</h2>
+    <p class="sub">Haz clic en una cabecera para ordenar. «Memoria del proceso» es lo que ocupa la ejecución en sí; «CPU máx. del proceso» va en % de un núcleo (100 % = un núcleo entero).</p>
+    <div class="table-scroll"><table id="t-ejec"></table></div>
+  </section>
+
+  <section>
+    <h2>Qué consume cada componente</h2>
+    <p class="sub">Media de las muestras. CPU en % de un núcleo. Lo fijo (servidor, base de datos y worker) ronda los 560 MB y siempre está ahí.</p>
+    <div class="table-scroll"><table id="t-comp"></table></div>
+  </section>
+
+  <section>
+    <h2>Filas procesadas por tabla</h2>
+    <p class="sub">La sincronización es incremental: compara Paradox con SQL Server y solo escribe la diferencia.</p>
+    <div class="table-scroll"><table id="t-tablas"></table></div>
+    <div class="callout"><b>balan_finanzas (31 108 filas actualizadas): causa encontrada y corregida.</b> La columna <i>Rmq</i> está vacía en casi todas las filas y la VM la guardaba como −2147483648, mientras el Programador de tareas de Windows la guardaba como NULL; cada uno reescribía la tabla del otro. Desde el arreglo del 17/11 ambos escriben NULL: la ejecución de comprobación inmediatamente posterior actualizó <b>0 filas</b>. Las pocas filas fijas de <i>ecri</i>, <i>balme</i> y <i>codiv</i> que se repetían en cada ejecución eran textos con «€» y comillas mal leídos; también quedan corregidas.</div>
+  </section>
+
+  <section>
+    <h2>Capacidad de la VM</h2>
+    <p class="sub">Recursos de la VM de pruebas y lo que ocupa cada parte en disco.</p>
+    <div class="table-scroll"><table id="t-cap"></table></div>
+  </section>
+
+  <section>
+    <h2>Recomendación para la VM de producción</h2>
+    <div class="recs">
+      <div class="rec"><div class="v">2 vCPU</div><p>El pico de toda la VM fue 53,5 %. Un núcleo se llena solo durante segundos, mientras se leen las tablas más grandes.</p></div>
+      <div class="rec"><div class="v">4 GB de RAM</div><p>Pico de 2,4 GB con la ejecución más pesada (mvts). Con 4 GB queda un margen de ~1,5 GB. Si alguna vez se solapan ejecuciones, 6 GB.</p></div>
+      <div class="rec"><div class="v">Horarios escalonados</div><p>Cada ejecución dura menos de 75 s; separarlas unos minutos evita que coincidan los picos de memoria.</p></div>
+      <div class="rec"><div class="v">30 GB de disco</div><p>Hoy se usan 7,4 GB. El resto deja sitio a registros, actualizaciones e imágenes Docker nuevas.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <details>
+      <summary>Cómo se midió</summary>
+      <ul id="metodo"></ul>
+    </details>
+  </section>
+
+  <footer id="pie"></footer>
+</main>
+
+<script>
+const DATOS = {"resumen":{"idle":{"cpu":3.048214285714287,"cpu_max":13.5,"ram":1371.3125,"ram_max":1393.0,"disp":2027.4375,"carga":0.12446428571428567,"rx":0.2249999999999998,"n":112},"act":{"cpu":11.266037735849057,"cpu_max":53.5,"ram":1621.622641509434,"ram_max":2439.0,"disp":960.0,"carga":0.36,"rx":881.8396226415099,"n":53},"total_s":258.8,"rx_mb":236.634765625,"ram_total":3398,"inicio":"2026-11-17T12:16:25Z","fin":"2026-11-17T13:14:21Z","primera":"2026-11-17T12:25:59.868Z"},"serie":[[0,8.4,1326,0],[5,5.0,1318,0],[10,2.3,1318,0],[15,2.3,1319,0],[20,2.7,1319,0],[25,2.5,1319,0],[30,3.0,1319,0],[35,3.7,1319,0],[40,2.9,1320,0],[45,2.0,1320,0],[50,4.1,1320,0],[55,2.6,1320,0],[60,2.9,1318,0],[65,3.4,1316,0],[70,2.7,1320,0],[75,2.4,1320,0],[80,3.8,1316,0],[85,1.9,1316,0],[90,3.3,1320,0],[95,3.9,1321,0],[100,2.4,1321,0],[105,2.3,1321,0],[110,2.9,1321,0],[115,2.3,1321,0],[120,2.8,1322,0],[125,3.7,1322,0],[130,13.5,1384,1],[135,2.4,1379,0],[140,3.3,1379,0],[145,2.4,1379,0],[150,3.0,1381,0],[155,3.6,1385,0],[160,3.8,1382,0],[165,2.3,1381,0],[170,3.6,1381,0],[175,1.9,1381,0],[180,3.5,1384,0],[185,2.9,1387,0],[190,3.0,1387,0],[195,2.5,1387,0],[200,3.1,1387,0],[205,2.7,1387,0],[210,2.9,1387,0],[215,3.5,1387,0],[220,2.9,1388,0],[225,2.2,1388,0],[230,3.4,1388,0],[235,2.3,1388,0],[240,2.3,1388,0],[245,4.1,1391,0],[250,3.8,1391,0],[255,2.3,1391,0],[260,2.8,1388,0],[265,2.2,1388,0],[270,3.2,1384,0],[275,3.5,1378,0],[280,2.8,1378,0],[285,2.0,1378,0],[291,3.8,1381,0],[296,2.6,1381,0],[301,3.2,1381,0],[306,2.9,1389,0],[311,3.5,1389,0],[316,2.3,1389,0],[321,2.9,1389,0],[326,1.9,1389,0],[331,3.6,1389,0],[336,4.4,1384,0],[341,3.3,1386,0],[346,2.6,1386,0],[351,3.7,1387,0],[356,2.4,1387,0],[361,2.8,1387,0],[366,3.3,1391,0],[371,3.9,1391,0],[376,1.9,1391,0],[381,2.9,1391,0],[386,2.6,1391,0],[391,3.6,1392,0],[396,3.5,1392,0],[401,2.9,1392,0],[406,1.7,1392,0],[411,2.9,1392,0],[416,2.6,1392,0],[421,2.9,1392,0],[426,3.0,1393,0],[431,3.8,1389,0],[436,2.4,1389,0],[441,3.1,1389,0],[446,2.9,1389,0],[451,3.1,1390,0],[456,2.4,1390,0],[461,3.0,1390,0],[466,2.0,1390,0],[471,3.4,1390,0],[476,2.5,1390,0],[481,2.5,1390,0],[486,2.7,1383,0],[491,2.7,1383,0],[496,2.3,1383,0],[501,3.1,1383,0],[506,2.3,1383,0],[511,3.2,1383,0],[516,2.6,1387,0],[521,2.8,1387,0],[526,2.0,1387,0],[531,4.0,1388,0],[536,2.1,1388,0],[541,2.6,1388,0],[546,3.1,1388,0],[551,3.0,1390,0],[556,2.3,1390,0],[561,2.7,1391,0],[566,2.4,1391,0],[571,2.5,1391,0],[576,23.6,1482,33],[581,6.3,1483,2755],[586,4.7,1648,139],[591,12.7,1421,748],[596,3.4,1412,0],[601,1.7,1412,0],[606,4.4,1392,0],[611,2.6,1392,0],[616,3.3,1392,0],[621,2.5,1392,0],[626,3.4,1393,0],[631,2.7,1393,1],[636,4.0,1393,0],[641,2.3,1393,0],[646,3.1,1393,0],[651,3.0,1393,0],[656,3.2,1394,0],[661,2.4,1394,0],[666,4.0,1394,0],[671,3.1,1394,0],[676,3.5,1394,0],[681,2.1,1394,0],[686,2.8,1394,0],[691,2.3,1394,0],[696,4.1,1393,0],[701,2.8,1393,0],[706,2.8,1393,0],[711,2.8,1393,0],[716,3.0,1393,0],[721,2.4,1391,0],[726,4.1,1390,0],[731,3.2,1391,0],[736,3.1,1391,0],[741,1.8,1391,0],[746,2.6,1391,0],[751,2.6,1391,0],[756,4.3,1392,0],[761,2.6,1392,0],[766,2.8,1392,0],[771,4.2,1392,0],[776,3.7,1392,0],[781,1.9,1392,0],[786,4.8,1394,0],[791,2.6,1394,0],[796,3.5,1394,0],[801,2.7,1394,0],[806,2.9,1389,0],[811,2.2,1389,0],[816,4.9,1397,0],[821,2.7,1397,0],[826,2.8,1397,0],[831,2.8,1397,0],[836,3.0,1397,0],[841,2.3,1397,0],[846,3.6,1392,0],[851,2.8,1392,0],[856,2.9,1392,0],[861,2.4,1392,0],[866,3.0,1392,0],[871,2.1,1392,0],[876,22.9,1479,209],[881,8.1,1479,4566],[886,7.4,1674,1298],[891,30.2,1844,1528],[896,7.9,1673,130],[901,5.4,1764,1664],[906,5.8,1772,152],[911,11.8,1757,355],[916,6.7,1741,165],[921,4.6,1413,18],[926,3.1,1413,0],[931,2.1,1413,0],[937,3.8,1409,0],[942,2.0,1409,0],[947,3.0,1407,0],[952,2.9,1407,0],[957,4.1,1407,0],[962,2.3,1407,0],[967,3.7,1404,1],[972,3.1,1405,0],[977,3.1,1406,0],[982,2.0,1406,0],[987,3.8,1407,0],[992,2.2,1407,0],[997,3.9,1403,0],[1002,1.8,1403,0],[1007,3.0,1403,0],[1012,2.6,1403,0],[1017,2.6,1401,0],[1022,2.5,1401,0],[1027,3.8,1403,0],[1032,2.6,1403,0],[1037,3.1,1403,0],[1042,6.0,1401,9],[1047,2.8,1402,0],[1052,3.1,1402,0],[1057,4.6,1403,0],[1062,2.5,1403,0],[1067,2.8,1403,0],[1072,5.0,1403,6],[1077,3.0,1403,1],[1082,2.4,1403,0],[1087,4.2,1404,0],[1092,2.3,1404,0],[1097,3.7,1403,0],[1102,2.1,1403,0],[1107,3.3,1400,0],[1112,2.7,1400,0],[1117,13.9,1444,2],[1122,5.2,1402,0],[1127,3.5,1399,0],[1132,2.9,1399,0],[1137,2.9,1400,0],[1142,2.4,1400,0],[1147,3.6,1394,0],[1152,2.8,1394,0],[1157,2.9,1394,0],[1162,2.6,1394,0],[1167,2.7,1394,0],[1172,8.4,1472,0],[1177,6.2,1494,93],[1182,8.5,1494,4195],[1187,26.1,1734,710],[1192,28.2,1956,1520],[1197,8.2,1413,0],[1202,2.7,1412,0],[1207,3.6,1413,0],[1212,2.5,1413,0],[1217,3.4,1413,0],[1222,2.5,1410,0],[1227,2.7,1410,0],[1232,3.0,1410,0],[1237,3.9,1410,0],[1242,3.0,1411,0],[1247,2.8,1410,0],[1252,3.2,1411,0],[1257,2.6,1411,0],[1262,3.8,1411,0],[1267,3.2,1412,0],[1272,2.9,1412,0],[1277,2.5,1412,0],[1282,2.9,1407,0],[1287,2.3,1407,0],[1292,4.0,1401,0],[1297,3.6,1403,0],[1302,3.2,1403,0],[1307,2.7,1403,0],[1312,3.7,1403,1],[1317,1.9,1403,0],[1322,3.7,1403,0],[1327,3.4,1404,0],[1332,3.6,1400,0],[1337,2.1,1400,0],[1342,3.1,1397,0],[1347,1.8,1397,0],[1352,2.9,1396,0],[1357,3.3,1402,0],[1362,3.1,1402,0],[1367,2.2,1402,0],[1372,3.4,1403,0],[1377,2.1,1403,0],[1382,3.6,1403,0],[1387,2.8,1403,0],[1392,3.2,1403,0],[1397,2.7,1403,0],[1402,2.9,1404,0],[1407,2.1,1404,0],[1412,3.9,1404,0],[1417,3.1,1413,0],[1422,3.2,1414,0],[1427,2.5,1414,0],[1432,3.1,1414,0],[1437,2.2,1414,0],[1442,2.8,1414,0],[1447,4.2,1414,0],[1452,3.1,1414,0],[1457,2.5,1414,0],[1462,2.9,1413,0],[1467,8.1,1408,0],[1472,15.3,1475,0],[1477,5.9,1491,532],[1482,9.1,1493,4464],[1487,7.1,1492,3854],[1492,7.4,1493,2430],[1497,5.4,1493,2295],[1502,6.9,1498,2087],[1507,5.2,1498,2030],[1512,50.2,1918,258],[1517,53.5,2390,0],[1522,22.3,2439,136],[1527,16.4,1435,957],[1532,3.0,1421,0],[1537,2.5,1421,0],[1542,5.0,1422,0],[1547,2.5,1422,0],[1552,3.1,1419,0],[1557,2.9,1419,0],[1562,3.0,1419,0],[1567,2.6,1419,0],[1572,4.1,1414,0],[1577,2.8,1414,0],[1582,3.0,1415,0],[1587,2.4,1415,0],[1592,2.9,1415,0],[1597,2.7,1415,0],[1603,3.6,1415,0],[1608,2.3,1415,0],[1613,3.0,1416,0],[1618,2.3,1416,0],[1623,3.4,1416,0],[1628,2.2,1416,0],[1633,3.7,1406,0],[1638,2.5,1406,0],[1643,2.8,1409,0],[1648,2.4,1409,0],[1653,3.0,1410,0],[1658,2.9,1410,0],[1663,4.6,1407,0],[1668,2.4,1407,0],[1673,3.0,1410,0],[1678,2.5,1410,0],[1683,3.1,1411,0],[1688,2.6,1410,0],[1693,3.5,1421,0],[1698,1.8,1421,0],[1703,3.4,1421,0],[1708,2.5,1421,0],[1713,2.9,1422,0],[1718,3.0,1422,0],[1723,4.5,1422,0],[1728,1.9,1422,0],[1733,3.5,1422,0],[1738,2.0,1422,0],[1743,2.7,1422,0],[1748,2.7,1422,0],[1753,4.0,1423,0],[1758,2.4,1423,0],[1763,3.2,1423,0],[1768,19.3,1460,0],[1773,13.0,1484,0],[1778,6.7,1489,815],[1783,13.7,1599,164],[1788,9.1,1695,420],[1793,7.4,1569,14],[1798,6.4,1569,3605],[1803,28.3,1737,866],[1808,11.6,2074,1612],[1813,47.6,1790,1586],[1818,4.1,1431,0],[1823,3.3,1431,0],[1828,1.9,1431,0],[1833,2.9,1431,0],[1838,2.4,1431,0],[1843,4.6,1428,0],[1848,2.4,1428,0],[1853,4.0,1428,0],[1858,2.1,1428,0],[1863,3.3,1428,0],[1868,2.4,1428,0],[1873,4.7,1425,0],[1878,2.0,1425,0],[1883,3.0,1425,0],[1888,1.9,1425,0],[1893,3.4,1421,1],[1898,2.4,1421,0],[1903,3.5,1422,0],[1908,2.7,1422,0],[1913,3.3,1422,0],[1918,2.0,1422,0],[1923,3.1,1422,0],[1928,2.4,1422,0],[1933,4.8,1417,0],[1938,2.0,1417,0],[1943,3.6,1417,0],[1948,2.5,1417,0],[1953,2.6,1418,0],[1958,2.7,1418,0],[1963,3.1,1417,0],[1968,2.5,1417,0],[1973,3.4,1417,0],[1978,1.7,1417,0],[1983,2.7,1417,0],[1988,2.4,1417,0],[1993,4.2,1423,0],[1998,1.9,1423,0],[2003,3.4,1424,0],[2008,2.3,1424,0],[2013,3.0,1422,0],[2018,2.7,1422,0],[2023,4.3,1425,0],[2028,2.5,1425,0],[2033,3.2,1425,0],[2038,2.6,1425,0],[2043,2.8,1425,0],[2048,3.3,1425,0],[2053,3.9,1434,0],[2058,2.1,1434,0],[2063,2.6,1434,0],[2068,2.7,1434,0],[2073,2.9,1431,0],[2078,2.8,1431,0],[2083,3.7,1431,0],[2088,2.6,1431,0],[2093,3.6,1431,0],[2098,2.5,1431,0],[2103,2.5,1431,0],[2108,2.8,1430,0],[2113,4.8,1427,0],[2118,2.4,1427,0],[2123,3.0,1427,0],[2128,2.8,1427,0],[2133,2.8,1427,0],[2138,2.5,1427,0],[2143,3.9,1423,0],[2148,2.8,1423,0],[2153,3.5,1419,0],[2158,1.9,1419,0],[2164,3.0,1419,0],[2169,2.5,1419,0],[2174,4.5,1419,0],[2179,3.1,1419,0],[2184,2.6,1419,0],[2189,2.8,1419,0],[2194,2.4,1419,0],[2199,2.9,1419,0],[2204,3.6,1420,0],[2209,3.1,1420,0],[2214,2.0,1420,0],[2219,3.0,1420,0],[2224,2.1,1420,0],[2229,3.0,1420,0],[2234,4.3,1420,0],[2239,2.7,1421,0],[2244,2.5,1421,0],[2249,2.7,1421,0],[2254,2.5,1421,1],[2259,2.9,1421,0],[2264,3.0,1422,0],[2269,2.9,1422,1],[2274,2.5,1422,0],[2279,2.8,1423,0],[2284,1.9,1423,0],[2289,3.5,1423,0],[2294,3.4,1419,0],[2299,3.0,1420,0],[2304,2.2,1420,0],[2309,3.5,1420,0],[2314,2.5,1420,0],[2319,3.1,1420,0],[2324,4.0,1424,0],[2329,2.9,1424,0],[2334,2.6,1424,0],[2339,3.1,1424,0],[2344,2.0,1424,0],[2349,3.6,1425,0],[2354,3.6,1428,0],[2359,2.4,1429,0],[2364,1.8,1429,0],[2369,7.4,1419,0],[2374,16.2,1500,0],[2379,5.3,1503,6],[2384,4.7,1513,1],[2389,4.4,1512,4],[2394,5.9,1423,0],[2399,3.1,1423,0],[2404,2.5,1423,0],[2409,3.2,1424,0],[2414,4.4,1425,0],[2419,2.6,1425,0],[2424,2.6,1425,0],[2429,2.9,1425,0],[2434,2.3,1425,0],[2439,2.4,1425,0],[2444,3.3,1437,0],[2449,2.6,1437,0],[2454,3.1,1437,0],[2459,2.9,1438,0],[2464,2.7,1437,0],[2469,2.8,1431,0],[2474,3.8,1438,0],[2479,2.8,1433,0],[2484,2.1,1433,0],[2489,3.6,1433,0],[2494,2.4,1433,0],[2499,2.6,1433,1],[2504,3.3,1440,0],[2509,2.7,1436,0],[2514,2.7,1436,0],[2519,2.6,1437,0],[2524,2.3,1437,0],[2529,6.3,1433,8],[2534,4.3,1433,0],[2539,2.9,1433,0],[2544,2.2,1433,0],[2549,3.6,1431,0],[2554,3.9,1431,4],[2559,6.0,1422,6],[2564,3.8,1424,0],[2569,3.0,1424,0],[2574,2.8,1424,0],[2579,3.0,1424,0],[2584,2.3,1424,0],[2589,5.3,1424,5],[2594,5.4,1432,0],[2599,2.5,1432,0],[2604,2.1,1432,0],[2609,3.1,1433,0],[2614,2.3,1433,0],[2619,7.2,1428,5],[2625,3.0,1428,0],[2630,3.4,1429,0],[2635,2.6,1429,0],[2640,3.0,1431,0],[2645,2.3,1431,0],[2650,5.2,1432,5],[2655,4.8,1432,0],[2660,3.2,1433,0],[2665,1.8,1433,0],[2670,22.6,1500,0],[2675,2.6,1500,0],[2680,6.9,1506,9],[2685,6.2,1424,1],[2690,3.3,1428,0],[2695,2.7,1428,0],[2700,3.4,1428,0],[2705,1.9,1428,0],[2710,5.1,1424,4],[2715,5.7,1426,0],[2720,3.1,1427,0],[2725,2.1,1427,0],[2730,3.1,1429,0],[2735,2.5,1429,0],[2740,5.9,1430,5],[2745,3.9,1430,0],[2750,2.5,1430,0],[2755,2.7,1430,0],[2760,2.8,1430,0],[2765,2.6,1430,0],[2770,4.0,1430,5],[2775,5.7,1431,0],[2780,2.3,1431,0],[2785,2.5,1431,0],[2790,1.9,1431,0],[2795,3.7,1431,0],[2800,3.8,1431,4],[2805,3.8,1431,0],[2810,2.8,1431,0],[2815,2.9,1431,0],[2820,1.9,1431,0],[2825,2.9,1431,0],[2830,4.0,1431,4],[2835,3.6,1431,0],[2840,2.2,1431,0],[2845,3.3,1432,0],[2850,1.8,1432,0],[2855,3.7,1432,0],[2860,3.9,1432,5],[2865,3.9,1437,0],[2870,2.5,1437,0],[2875,2.8,1437,0],[2880,2.5,1437,0],[2885,2.8,1437,0],[2890,4.1,1437,5],[2895,4.3,1440,0],[2900,2.7,1440,0],[2905,2.5,1435,0],[2910,2.1,1435,0],[2915,3.6,1435,0],[2920,4.0,1435,4],[2925,4.0,1435,0],[2930,3.2,1435,0],[2935,3.3,1432,0],[2940,1.9,1432,0],[2945,2.8,1433,0],[2950,4.4,1433,5],[2955,4.7,1433,0],[2960,2.9,1433,0],[2965,3.0,1433,0],[2970,26.3,1504,0],[2975,8.9,1514,0],[2980,5.0,1515,11],[2985,3.9,1511,1],[2990,3.1,1511,1],[2995,4.1,1511,1],[3000,2.6,1511,1],[3005,3.7,1512,1],[3010,4.3,1512,6],[3015,5.1,1514,1],[3020,2.9,1516,1],[3025,3.2,1517,1],[3030,2.6,1517,1],[3035,4.4,1517,1],[3040,2.5,1517,2],[3045,5.9,1516,6],[3050,5.9,1432,1],[3055,3.7,1432,0],[3060,2.1,1432,0],[3065,3.3,1432,0],[3070,2.2,1432,0],[3075,5.7,1432,4],[3080,4.7,1439,0],[3085,2.6,1435,0],[3090,12.4,1439,22],[3095,3.4,1438,0],[3100,7.6,1435,12],[3105,7.2,1432,8],[3110,3.8,1433,0],[3115,17.4,1455,5],[3120,2.2,1455,0],[3125,2.9,1455,0],[3130,1.7,1455,0],[3135,3.7,1457,0],[3140,3.8,1465,0],[3145,5.5,1465,0],[3150,1.9,1465,0],[3155,3.2,1465,0],[3160,2.2,1465,0],[3165,3.5,1465,0],[3170,4.0,1465,0],[3175,4.0,1466,1],[3180,2.0,1466,0],[3185,3.5,1466,0],[3190,1.9,1466,0],[3195,3.4,1467,0],[3200,3.2,1465,0],[3205,2.8,1463,0],[3210,1.6,1463,0],[3215,6.2,1458,6],[3220,1.9,1458,1],[3225,3.4,1454,0],[3230,4.9,1458,0],[3235,3.6,1459,1],[3240,2.4,1459,0],[3245,2.8,1461,0],[3251,2.5,1461,0],[3256,4.0,1461,0],[3261,4.3,1468,1],[3266,6.9,1465,9],[3271,2.0,1465,0],[3276,3.7,1467,0],[3281,1.9,1467,0],[3286,3.2,1466,0],[3291,3.6,1460,0],[3296,7.3,1458,6],[3301,2.2,1458,0],[3306,3.0,1461,0],[3311,2.0,1461,0],[3316,2.9,1462,0],[3321,4.6,1462,0],[3326,4.8,1462,6],[3331,3.1,1462,0],[3336,2.6,1462,0],[3341,2.6,1462,0],[3346,1.7,1461,0],[3351,3.7,1469,0],[3356,6.2,1469,6],[3361,3.0,1466,0],[3366,2.1,1466,0],[3371,3.0,1466,0],[3376,2.0,1466,0],[3381,4.1,1468,0],[3386,5.1,1468,6],[3391,3.2,1465,0],[3396,2.3,1465,0],[3401,3.3,1462,0],[3406,2.1,1462,0],[3411,3.3,1467,0],[3416,5.5,1467,6],[3421,2.7,1460,0],[3426,2.4,1460,0],[3431,2.7,1462,0],[3436,2.4,1462,0],[3441,3.6,1467,0],[3446,4.8,1467,6],[3451,2.8,1465,0],[3456,2.4,1465,0],[3461,3.6,1465,0],[3466,1.9,1465,0],[3471,4.5,1469,0],[3476,5.3,1469,6]],"ejecuciones":[{"proceso":"paradox-actirep","ini":574.9,"fin":588.5,"inicio_utc":"2026-11-17T12:25:59.868Z","seg":13.6,"estado":"Completed","rss":289.0,"cpu_max":29.8,"ram_vm_max":1648.0,"filas":135133},{"proceso":"paradox-docen","ini":874.7,"fin":919.2,"inicio_utc":"2026-11-17T12:30:59.661Z","seg":44.5,"estado":"Completed","rss":489.0,"cpu_max":53.1,"ram_vm_max":1844.0,"filas":90331},{"proceso":"paradox-ecri","ini":1175.2,"fin":1193.0,"inicio_utc":"2026-11-17T12:36:00.175Z","seg":17.8,"estado":"Completed","rss":603.0,"cpu_max":48.7,"ram_vm_max":1956.0,"filas":102722},{"proceso":"paradox-mvts","ini":1475.0,"fin":1525.5,"inicio_utc":"2026-11-17T12:41:00.032Z","seg":50.5,"estado":"Completed","rss":1072.0,"cpu_max":100.1,"ram_vm_max":2439.0,"filas":58283},{"proceso":"paradox-balan-balme","ini":1775.3,"fin":1813.5,"inicio_utc":"2026-11-17T12:46:00.346Z","seg":38.1,"estado":"Completed","rss":696.0,"cpu_max":85.1,"ram_vm_max":2074.0,"filas":171200},{"proceso":"compras-detalle-pedidos","ini":2374.7,"fin":2389.3,"inicio_utc":"2026-11-17T12:55:59.725Z","seg":14.6,"estado":"Completed","rss":113.0,"cpu_max":26.6,"ram_vm_max":1513.0,"filas":null},{"proceso":"compras-detalle-albaranes","ini":2675.3,"fin":2682.7,"inicio_utc":"2026-11-17T13:01:00.276Z","seg":7.4,"estado":"Completed","rss":112.0,"cpu_max":2.6,"ram_vm_max":1506.0,"filas":null},{"proceso":"compras-asociacion-factura-albaran","ini":2974.9,"fin":3047.2,"inicio_utc":"2026-11-17T13:05:59.853Z","seg":72.3,"estado":"Completed","rss":113.0,"cpu_max":6.4,"ram_vm_max":1517.0,"filas":null}],"componentes":[{"c":"Servidor de Prefect (API y panel)","cpu_i":3.3607142857142875,"rss_i":203.0,"cpu_a":4.60754716981132,"rss_a":205.43396226415095,"rss_max":207.0},{"c":"PostgreSQL (base de datos de Prefect)","cpu_i":0.28928571428571387,"rss_i":222.61607142857142,"cpu_a":0.5584905660377357,"rss_a":249.0943396226415,"rss_max":262.0},{"c":"Worker (lanza las ejecuciones)","cpu_i":0.0946428571428571,"rss_i":128.0,"cpu_a":0.1849056603773585,"rss_a":128.0,"rss_max":128.0},{"c":"Medidor (este registro)","cpu_i":0.14642857142857127,"rss_i":19.3125,"cpu_a":0.12830188679245288,"rss_a":34.0188679245283,"rss_max":45.0},{"c":"Ejecución del flujo (solo mientras corre)","cpu_i":null,"rss_i":null,"cpu_a":14.48490566037736,"rss_a":236.47169811320754,"rss_max":1072.0}],"tablas":[{"proceso":"paradox-actirep","tabla":"actirep_finanzas","filas_paradox":"135133","actualizadas":"0","insertadas":"22","borradas":"0","segundos":"13.5"},{"proceso":"paradox-docen","tabla":"docen_finanzas","filas_paradox":"30541","actualizadas":"2","insertadas":"0","borradas":"0","segundos":"17.7"},{"proceso":"paradox-docen","tabla":"delrg_finanzas","filas_paradox":"56","actualizadas":"0","insertadas":"0","borradas":"0","segundos":"2.8"},{"proceso":"paradox-docen","tabla":"docec_finanzas","filas_paradox":"53660","actualizadas":"0","insertadas":"0","borradas":"0","segundos":"15.4"},{"proceso":"paradox-docen","tabla":"adhes_finanzas","filas_paradox":"4458","actualizadas":"0","insertadas":"0","borradas":"0","segundos":"4.4"},{"proceso":"paradox-docen","tabla":"codiv_finanzas","filas_paradox":"1616","actualizadas":"26","insertadas":"0","borradas":"0","segundos":"4.1"},{"proceso":"paradox-ecri","tabla":"ecri_finanzas","filas_paradox":"102722","actualizadas":"97","insertadas":"36","borradas":"0","segundos":"17.6"},{"proceso":"paradox-mvts","tabla":"mvts_finanzas","filas_paradox":"58283","actualizadas":"1","insertadas":"18","borradas":"0","segundos":"50.2"},{"proceso":"paradox-balan-balme","tabla":"balan_finanzas","filas_paradox":"31113","actualizadas":"31108","insertadas":"3","borradas":"0","segundos":"17.0"},{"proceso":"paradox-balan-balme","tabla":"balme_finanzas","filas_paradox":"140087","actualizadas":"20","insertadas":"0","borradas":"0","segundos":"20.9"}],"capacidad":[{"recurso":"vCPU","valor":"2","unidad":"núcleos"},{"recurso":"RAM total","valor":"3398","unidad":"MB"},{"recurso":"Disco total","valor":"25","unidad":"GB"},{"recurso":"Disco usado","valor":"7.4","unidad":"GB"},{"recurso":"Imágenes Docker","valor":"1553","unidad":"MB"},{"recurso":"Entorno Python (venv)","valor":"249","unidad":"MB"},{"recurso":"Tablas Paradox descargadas","valor":"183","unidad":"MB"},{"recurso":"Base de datos de Prefect","valor":"20","unidad":"MB"}]};
+
+const R = DATOS.resumen;
+const fmt = (v, d = 0) => v == null ? "—" : Number(v).toLocaleString("es-ES", { minimumFractionDigits: d, maximumFractionDigits: d });
+const t0 = new Date(R.inicio);
+const horaMadrid = s => new Date(t0.getTime() + s * 1000).toLocaleTimeString("es-ES", { timeZone: "Europe/Madrid", hour: "2-digit", minute: "2-digit" });
+const horaMadridSeg = s => new Date(t0.getTime() + s * 1000).toLocaleTimeString("es-ES", { timeZone: "Europe/Madrid", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const fecha = new Date(R.inicio).toLocaleDateString("es-ES", { timeZone: "Europe/Madrid", day: "numeric", month: "long", year: "numeric" });
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs = {}, parent) => {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+};
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ---------- Cabecera ---------- */
+const pct = R.act.ram_max / R.ram_total * 100;
+document.getElementById("lede").textContent =
+  `Medición del ${fecha}: con la VM en reposo, Prefect usa ${fmt(R.idle.ram)} MB de RAM y un ${fmt(R.idle.cpu, 1)} % de CPU. ` +
+  `Las 8 sincronizaciones terminaron sin errores en ${fmt(R.total_s, 1)} s en total, y el pico de memoria fue de ${fmt(R.act.ram_max)} MB ` +
+  `(${fmt(pct)} % de la RAM), durante la ejecución de mvts.`;
+
+const kpis = [
+  ["Ejecuciones correctas", `${DATOS.ejecuciones.filter(e => e.estado === "Completed").length}<small>/ ${DATOS.ejecuciones.length}</small>`, "Todas en estado Completed"],
+  ["Tiempo total", `${fmt(R.total_s, 1)}<small>s</small>`, `≈ ${Math.floor(R.total_s / 60)} min ${Math.round(R.total_s % 60)} s sumando las 8`],
+  ["RAM en reposo", `${fmt(R.idle.ram)}<small>MB</small>`, `CPU media ${fmt(R.idle.cpu, 1)} %`],
+  ["Pico de RAM", `${fmt(R.act.ram_max)}<small>MB</small>`, `${fmt(pct)} % de ${fmt(R.ram_total)} MB · mín. libre ${fmt(R.act.disp)} MB`],
+  ["Pico de CPU", `${fmt(R.act.cpu_max, 1)}<small>%</small>`, `Media sincronizando ${fmt(R.act.cpu, 1)} %`],
+];
+document.getElementById("kpis").innerHTML = kpis.map(([l, v, d]) =>
+  `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join("");
+
+/* ---------- Gráfica temporal (CPU y RAM, dos paneles con el mismo eje X) ---------- */
+(function tiempo() {
+  const cont = document.getElementById("tiempo");
+  const S = DATOS.serie, E = DATOS.ejecuciones;
+  const W = 960, M = { l: 52, r: 16, t: 26 }, PH = 150, GAP = 46, H = M.t + PH + GAP + PH + 30;
+  const xMax = S[S.length - 1][0];
+  const x = s => M.l + s / xMax * (W - M.l - M.r);
+  const primera = (new Date(R.primera) - t0) / 1000;
+  const paneles = [
+    { k: 1, nombre: "CPU de la VM (%)", max: 100, ticks: [0, 25, 50, 75, 100], color: "var(--cpu)", y0: M.t, u: "%" , d: 1},
+    { k: 2, nombre: "RAM usada (MB)", max: R.ram_total, ticks: [0, 1000, 2000, 3000], color: "var(--ram)", y0: M.t + PH + GAP, u: "MB", d: 0, techo: R.ram_total },
+  ];
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "CPU y RAM de la VM a lo largo de la medición" }, cont);
+  for (const p of paneles) {
+    const y = v => p.y0 + PH - v / p.max * PH;
+    p.y = y;
+    // bandas
+    el("rect", { x: x(0), y: p.y0, width: x(primera - 15) - x(0), height: PH, fill: "var(--idle)" }, svg);
+    E.forEach((e, i) => {
+      el("rect", { x: x(e.ini), y: p.y0, width: Math.max(3, x(e.fin) - x(e.ini)), height: PH, fill: "var(--run)", rx: 1 }, svg);
+    });
+    // rejilla
+    for (const t of p.ticks) {
+      el("line", { x1: M.l, x2: W - M.r, y1: y(t), y2: y(t), stroke: "var(--grid)", "stroke-width": 1 }, svg);
+      el("text", { x: M.l - 8, y: y(t) + 4, "text-anchor": "end" }, svg).textContent = fmt(t);
+    }
+    if (p.techo) {
+      el("line", { x1: M.l, x2: W - M.r, y1: y(p.techo), y2: y(p.techo), stroke: "var(--text-3)", "stroke-width": 1, "stroke-dasharray": "4 4" }, svg);
+      el("text", { x: W - M.r, y: y(p.techo) - 5, "text-anchor": "end" }, svg).textContent = `RAM total ${fmt(p.techo)} MB`;
+    }
+    el("text", { x: M.l, y: p.y0 - 10, class: "ptitle" }, svg).textContent = p.nombre;
+    // línea
+    const d = S.map((r, i) => `${i ? "L" : "M"}${x(r[0]).toFixed(1)},${y(r[p.k]).toFixed(1)}`).join("");
+    el("path", { d, fill: "none", stroke: p.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+  }
+  // etiquetas de reposo y números de ejecución
+  const pr = paneles[0];
+  el("text", { x: (x(0) + x(primera - 15)) / 2, y: pr.y0 + 16, "text-anchor": "middle", style: "fill:var(--idle-ink);font-weight:600" }, svg).textContent = "Reposo";
+  E.forEach((e, i) => {
+    el("text", { x: (x(e.ini) + x(e.fin)) / 2, y: pr.y0 + 16, "text-anchor": "middle", style: "fill:var(--text-2);font-weight:600" }, svg).textContent = i + 1;
+  });
+  // pico de RAM
+  const pico = S.reduce((a, r) => r[2] > a[2] ? r : a);
+  const pr2 = paneles[1];
+  el("circle", { cx: x(pico[0]), cy: pr2.y(pico[2]), r: 4, fill: "var(--ram)", stroke: "var(--surface)", "stroke-width": 2 }, svg);
+  el("text", { x: x(pico[0]) + 8, y: pr2.y(pico[2]) - 6, style: "fill:var(--text-2)" }, svg).textContent = `Pico ${fmt(pico[2])} MB (mvts)`;
+  // eje X
+  const yEje = M.t + PH + GAP + PH;
+  for (let s = 0; s <= xMax; s += 300) {
+    el("line", { x1: x(s), x2: x(s), y1: yEje, y2: yEje + 4, stroke: "var(--text-3)" }, svg);
+    el("text", { x: x(s), y: yEje + 17, "text-anchor": "middle" }, svg).textContent = horaMadrid(s);
+  }
+  // capa interactiva
+  const cross = el("line", { y1: M.t, y2: yEje, stroke: "var(--text-2)", "stroke-width": 1, opacity: 0 }, svg);
+  const dots = paneles.map(p => el("circle", { r: 4, fill: p.color, stroke: "var(--surface)", "stroke-width": 2, opacity: 0 }, svg));
+  const hit = el("rect", { x: M.l, y: M.t, width: W - M.l - M.r, height: yEje - M.t, fill: "transparent" }, svg);
+  const tip = document.createElement("div"); tip.className = "tip"; cont.appendChild(tip);
+  const mover = ev => {
+    const pt = svg.createSVGPoint();
+    const src = ev.touches ? ev.touches[0] : ev;
+    pt.x = src.clientX; pt.y = src.clientY;
+    const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const s = (p.x - M.l) / (W - M.l - M.r) * xMax;
+    let best = S[0];
+    for (const r of S) if (Math.abs(r[0] - s) < Math.abs(best[0] - s)) best = r;
+    const cx = x(best[0]);
+    cross.setAttribute("x1", cx); cross.setAttribute("x2", cx); cross.setAttribute("opacity", .5);
+    paneles.forEach((pn, i) => { dots[i].setAttribute("cx", cx); dots[i].setAttribute("cy", pn.y(best[pn.k])); dots[i].setAttribute("opacity", 1); });
+    const iRun = E.findIndex(e => best[0] >= e.ini - 2 && best[0] <= e.fin + 3);
+    const fase = iRun >= 0 ? `${iRun + 1}. ${E[iRun].proceso}` : (best[0] < primera - 15 ? "Reposo" : "Entre ejecuciones");
+    tip.innerHTML = `<b>${horaMadridSeg(best[0])}</b> · ${esc(fase)}
+      <div class="row"><span><i class="sw" style="background:var(--cpu)"></i>CPU</span><b>${fmt(best[1], 1)} %</b></div>
+      <div class="row"><span><i class="sw" style="background:var(--ram)"></i>RAM usada</span><b>${fmt(best[2])} MB</b></div>
+      <div class="row"><span style="padding-left:16px">Red recibida</span><b>${fmt(best[3])} KB/s</b></div>`;
+    const box = cont.getBoundingClientRect();
+    const scale = box.width / W;
+    let left = cx * scale + 14;
+    tip.style.opacity = 1;
+    if (left + tip.offsetWidth > box.width) left = cx * scale - tip.offsetWidth - 14;
+    tip.style.left = Math.max(0, left) + "px";
+    tip.style.top = (M.t * scale + 10) + "px";
+    marcarFila(iRun);
+  };
+  const salir = () => { tip.style.opacity = 0; cross.setAttribute("opacity", 0); dots.forEach(d => d.setAttribute("opacity", 0)); marcarFila(-1); };
+  hit.addEventListener("mousemove", mover); hit.addEventListener("touchmove", e => { mover(e); e.preventDefault(); }, { passive: false });
+  hit.addEventListener("touchstart", mover, { passive: true });
+  hit.addEventListener("mouseleave", salir); hit.addEventListener("touchend", salir);
+})();
+
+/* ---------- Tablas ordenables ---------- */
+function tabla(id, cols, filas, opts = {}) {
+  const t = document.getElementById(id);
+  let orden = null, dir = 1;
+  const pintar = () => {
+    let fs = filas.slice();
+    if (orden != null) {
+      const c = cols[orden];
+      fs.sort((a, b) => {
+        const va = c.v(a), vb = c.v(b);
+        return (typeof va === "string" ? va.localeCompare(vb, "es") : (va ?? -Infinity) - (vb ?? -Infinity)) * dir;
+      });
+    }
+    t.innerHTML = `<thead><tr>${cols.map((c, i) =>
+      `<th ${c.sort === false ? "" : `data-sort="${i}"`} class="${c.cls || ""} ${orden === i ? (dir > 0 ? "asc" : "desc") : ""}" title="${esc(c.ayuda || "")}">${c.h}</th>`).join("")}</tr></thead>
+      <tbody>${fs.map(f => `<tr ${opts.key ? `data-k="${esc(opts.key(f))}"` : ""}>${cols.map(c => `<td class="${c.cls || ""}">${c.f ? c.f(f) : esc(c.v(f))}</td>`).join("")}</tr>`).join("")}</tbody>`;
+    t.querySelectorAll("th[data-sort]").forEach(th => th.onclick = () => {
+      const i = +th.dataset.sort;
+      if (orden === i) dir = -dir; else { orden = i; dir = typeof cols[i].v(filas[0]) === "string" ? 1 : -1; }
+      pintar();
+    });
+  };
+  pintar();
+}
+
+const RI = R.idle, RA = R.act;
+tabla("t-reposo", [
+  { h: "Indicador", v: f => f[0], sort: false },
+  { h: "En reposo", v: f => f[1], f: f => f[1], sort: false },
+  { h: "Sincronizando", v: f => f[2], f: f => f[2], sort: false },
+], [
+  ["CPU media", `${fmt(RI.cpu, 1)} %`, `${fmt(RA.cpu, 1)} %`],
+  ["CPU máxima", `${fmt(RI.cpu_max, 1)} %`, `${fmt(RA.cpu_max, 1)} %`],
+  ["RAM usada (media)", `${fmt(RI.ram)} MB`, `${fmt(RA.ram)} MB`],
+  ["RAM usada (máxima)", `${fmt(RI.ram_max)} MB`, `${fmt(RA.ram_max)} MB (${fmt(pct)} %)`],
+  ["RAM disponible", `${fmt(RI.disp)} MB (media)`, `${fmt(RA.disp)} MB (mínimo)`],
+  ["Carga del sistema (1 min)", `${fmt(RI.carga, 2)} (media)`, `${fmt(RA.carga, 2)} (máxima)`],
+  ["Red recibida (media)", `${fmt(RI.rx, 1)} KB/s`, `${fmt(RA.rx)} KB/s · ${fmt(R.rx_mb, 1)} MB en total`],
+  ["Muestras (cada 5 s)", fmt(RI.n), fmt(RA.n)],
+]);
+
+const E = DATOS.ejecuciones;
+tabla("t-ejec", [
+  { h: "#", v: f => E.indexOf(f) + 1, cls: "n" },
+  { h: "Ejecución", v: f => f.proceso, cls: "t" },
+  { h: "Inicio", v: f => f.ini, f: f => horaMadridSeg(f.ini) },
+  { h: "Duración", v: f => f.seg, f: f => `${fmt(f.seg, 1)} s` },
+  { h: "Memoria del proceso", v: f => f.rss, f: f => `${fmt(f.rss)} MB`, ayuda: "Memoria máxima que ocupó la ejecución" },
+  { h: "RAM máx. de la VM", v: f => f.ram_vm_max, f: f => `${fmt(f.ram_vm_max)} MB` },
+  { h: "CPU máx. del proceso", v: f => f.cpu_max, f: f => `${fmt(f.cpu_max)} %` },
+  { h: "Estado", v: f => f.estado, cls: "nw", f: f => `<span class="ok">✓ ${esc(f.estado)}</span>` },
+], E, { key: f => f.proceso });
+
+function marcarFila(i) {
+  document.querySelectorAll("#t-ejec tbody tr").forEach(tr => tr.classList.toggle("hl", i >= 0 && tr.dataset.k === E[i].proceso));
+  document.querySelectorAll("#duraciones .bar").forEach(g => g.classList.toggle("hl", i >= 0 && g.dataset.k === E[i].proceso));
+}
+
+tabla("t-comp", [
+  { h: "Componente", v: f => f.c, cls: "t" },
+  { h: "CPU en reposo", v: f => f.cpu_i, f: f => `${fmt(f.cpu_i, 1)} %` },
+  { h: "Memoria en reposo", v: f => f.rss_i, f: f => `${fmt(f.rss_i)} MB` },
+  { h: "CPU sincronizando", v: f => f.cpu_a, f: f => `${fmt(f.cpu_a, 1)} %` },
+  { h: "Memoria sincronizando", v: f => f.rss_a, f: f => `${fmt(f.rss_a)} MB` },
+  { h: "Memoria máxima", v: f => f.rss_max, f: f => `${fmt(f.rss_max)} MB` },
+], DATOS.componentes);
+
+tabla("t-tablas", [
+  { h: "Ejecución", v: f => f.proceso },
+  { h: "Tabla SQL", v: f => f.tabla, cls: "t" },
+  { h: "Filas en Paradox", v: f => +f.filas_paradox, f: f => fmt(f.filas_paradox) },
+  { h: "Actualizadas", v: f => +f.actualizadas, f: f => fmt(f.actualizadas) + (f.tabla === "balan_finanzas" ? " *" : "") },
+  { h: "Insertadas", v: f => +f.insertadas, f: f => fmt(f.insertadas) },
+  { h: "Borradas", v: f => +f.borradas, f: f => fmt(f.borradas) },
+  { h: "Segundos", v: f => +f.segundos, f: f => fmt(f.segundos, 1) },
+], DATOS.tablas);
+
+tabla("t-cap", [
+  { h: "Recurso", v: f => f.recurso, sort: false },
+  { h: "Valor", v: f => f.valor, f: f => `${fmt(f.valor, String(f.valor).includes(".") ? 1 : 0)} ${esc(f.unidad)}`, sort: false },
+], DATOS.capacidad);
+
+/* ---------- Barras de duración ---------- */
+(function duraciones() {
+  const cont = document.getElementById("duraciones");
+  const W = 960, L = 250, Rm = 70, BH = 22, GAP = 12, top = 4;
+  const H = top + E.length * (BH + GAP);
+  const max = Math.max(...E.map(e => e.seg));
+  const mas = E.reduce((a, e) => e.seg > a.seg ? e : a);
+  document.getElementById("sub-dur").textContent =
+    `La más larga es ${mas.proceso} con ${fmt(mas.seg, 1)} s; ninguna llega a minuto y cuarto. Total: ${fmt(R.total_s, 1)} s.`;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, class: "bars", role: "img", "aria-label": "Duración de cada ejecución en segundos" }, cont);
+  const x = v => v / max * (W - L - Rm);
+  const tip = document.createElement("div"); tip.className = "tip"; cont.appendChild(tip);
+  E.forEach((e, i) => {
+    const y = top + i * (BH + GAP);
+    const g = el("g", { class: "bar", "data-k": e.proceso }, svg);
+    el("rect", { x: 0, y: y - GAP / 2, width: W, height: BH + GAP, fill: "transparent" }, g);
+    el("text", { x: L - 10, y: y + BH / 2 + 4, "text-anchor": "end", class: "lbl" }, g).textContent = `${i + 1}. ${e.proceso}`;
+    const w = Math.max(4, x(e.seg));
+    el("path", { class: "fill", d: `M${L},${y}h${w - 4}a4,4 0 0 1 4,4v${BH - 8}a4,4 0 0 1 -4,4h${-(w - 4)}z`, fill: "var(--cpu)" }, g);
+    el("text", { x: L + w + 8, y: y + BH / 2 + 4, class: "val" }, g).textContent = `${fmt(e.seg, 1)} s`;
+    g.addEventListener("mousemove", ev => {
+      const box = cont.getBoundingClientRect();
+      tip.innerHTML = `<b>${i + 1}. ${esc(e.proceso)}</b>
+        <div class="row"><span>Duración</span><b>${fmt(e.seg, 1)} s</b></div>
+        <div class="row"><span>Memoria del proceso</span><b>${fmt(e.rss)} MB</b></div>
+        <div class="row"><span>RAM máx. de la VM</span><b>${fmt(e.ram_vm_max)} MB</b></div>`;
+      tip.style.opacity = 1;
+      let left = ev.clientX - box.left + 14;
+      if (left + tip.offsetWidth > box.width) left = ev.clientX - box.left - tip.offsetWidth - 14;
+      tip.style.left = Math.max(0, left) + "px";
+      tip.style.top = (ev.clientY - box.top + 12) + "px";
+      marcarFila(i);
+    });
+    g.addEventListener("mouseleave", () => { tip.style.opacity = 0; marcarFila(-1); });
+  });
+})();
+
+/* ---------- Método y pie ---------- */
+const dur = (new Date(R.fin) - t0) / 60000;
+document.getElementById("metodo").innerHTML = [
+  `Medición del ${fecha}, de ${horaMadrid(0)} a ${horaMadrid((new Date(R.fin) - t0) / 1000)} (hora de Madrid), ${fmt(dur)} minutos en total.`,
+  `Los primeros 10 minutos la VM estuvo en reposo: Prefect encendido y sin ejecuciones. Para «en reposo» se usan las muestras hasta 15 s antes de la primera ejecución.`,
+  `Después se lanzaron las 8 ejecuciones programadas, separadas unos 5 minutos, igual que en producción: cada una es independiente y no se solapan.`,
+  `Un registro ligero (solo lee /proc del sistema, sin instalar nada) tomó una muestra cada 5 segundos de CPU, RAM, red y disco de la VM y de cada proceso.`,
+  `CPU de la VM en % del total (100 % = los 2 núcleos llenos). CPU por proceso en % de un núcleo (100 % = un núcleo entero).`,
+  `Ya incluye la mejora aplicada a Prefect para las tablas grandes (las filas no se recorren una a una al pasarlas entre tareas).`,
+  `VM de pruebas: Ubuntu, 2 vCPU, ${fmt(R.ram_total)} MB de RAM y 25 GB de disco; Prefect 3 en Docker con PostgreSQL.`,
+].map(s => `<li>${s}</li>`).join("");
+document.getElementById("pie").textContent = `Informe generado a partir de la medición del ${fecha}. Archivo autónomo: funciona sin conexión.`;
+
+/* ---------- Tema ---------- */
+document.getElementById("tema").onclick = () => {
+  const r = document.documentElement;
+  const oscuro = r.dataset.theme ? r.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  r.dataset.theme = oscuro ? "light" : "dark";
+};
+</script>
+</body>
+</html>

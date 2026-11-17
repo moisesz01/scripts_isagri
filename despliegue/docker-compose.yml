@@ -1,0 +1,61 @@
+# ==========================================================
+# Prefect Server + PostgreSQL para orquestar scripts_isagri.
+#
+# Uso (en la VM, desde /opt/isagri/prefect-server):
+#   docker compose up -d
+#   docker compose ps
+#   docker compose logs -f prefect-server
+#
+# Las variables (contraseñas, IP, versión) se leen del archivo
+# .env que está junto a este docker-compose.yml (ver .env.example).
+# ==========================================================
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: prefect-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # Sin "ports": PostgreSQL solo es accesible desde la red interna de Docker
+
+  prefect-server:
+    image: prefecthq/prefect:${PREFECT_VERSION}-python3.12
+    container_name: prefect-server
+    restart: unless-stopped
+    command: prefect server start --host 0.0.0.0 --port 4200
+    environment:
+      PREFECT_API_DATABASE_CONNECTION_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # URL con la que el navegador llama a la API (IP de la VM)
+      PREFECT_UI_API_URL: http://${SERVER_IP}:4200/api
+      # URL del dashboard, para los enlaces "Ver logs" de los avisos de Teams
+      PREFECT_UI_URL: http://${SERVER_IP}:4200
+      # Usuario:contraseña para la UI y la API (autenticación básica)
+      PREFECT_SERVER_API_AUTH_STRING: ${PREFECT_AUTH_STRING}
+      PREFECT_SERVER_ANALYTICS_ENABLED: "false"
+      # Días que se guardan los runs y sus logs (limpieza automática)
+      PREFECT_SERVER_SERVICES_DB_VACUUM_ENABLED: "true"
+      PREFECT_SERVER_SERVICES_DB_VACUUM_RETENTION_PERIOD: ${RETENCION_DIAS:-90}d
+      TZ: ${TZ:-Europe/Madrid}
+    ports:
+      - "4200:4200"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  postgres_data:

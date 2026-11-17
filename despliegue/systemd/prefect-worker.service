@@ -1,0 +1,21 @@
+# Worker de Prefect que ejecuta los flujos de scripts_isagri.
+# Instalar en /etc/systemd/system/prefect-worker.service y:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now prefect-worker
+[Unit]
+Description=Prefect worker (isagri-pool)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=moisesz01
+Group=moisesz01
+WorkingDirectory=/opt/isagri/scripts_isagri
+# PREFECT_API_URL y PREFECT_API_AUTH_STRING
+EnvironmentFile=/opt/isagri/worker.env
+ExecStart=/opt/isagri/venv/bin/prefect worker start --pool isagri-pool --type process --name worker-isagri
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
