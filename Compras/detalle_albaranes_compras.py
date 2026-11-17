@@ -170,9 +170,13 @@ def migrar_albaranes_compras():
     except Exception as e:
         print(f"\nError durante la migración: {str(e)}")
         execution_output = e
+        today_date = date.today()
         guardar_mensaje(f"Fecha de Ejecución: {today_date} | Estado Ejecución: {execution_output}\n")
         if 'conn' in locals():
             conn.rollback()
+        # Propagar el error: Prefect marca la tarea como fallida y el
+        # Programador de tareas recibe código de salida 1
+        raise
     finally:
         if 'conn' in locals():
             conn.close()

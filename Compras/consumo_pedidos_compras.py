@@ -8,14 +8,11 @@ from datetime import datetime
 
 
 def conectar_sql_server():
-    try:
-        conn = pyodbc.connect(cadena_conexion())
-        return conn
-    except Exception as e:
-        print(f"Error al conectar a SQL Server: {e}")
-        return None
+    # Si falla, la excepción se propaga para que el fallo quede registrado
+    return pyodbc.connect(cadena_conexion())
 
 def migrar_datos_ak():
+    conn = None
     try:
         # Conectar a la base de datos
         conn = conectar_sql_server()
@@ -92,7 +89,7 @@ def migrar_datos_ak():
         print(f"Error durante la migración: {e}")
         if conn:
             conn.rollback()
-        return False
+        raise
     finally:
         if conn:
             conn.close()

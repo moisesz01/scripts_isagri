@@ -132,14 +132,19 @@ def migrar_datos():
         print(f"Total de registros procesados: {total_registros}")
         print(f"Registros insertados exitosamente: {registros_insertados}")
         print(f"Registros duplicados (omitidos): {registros_duplicados}")
-        print(f"Porcentaje de nuevos registros: {registros_insertados/total_registros*100:.2f}%")
+        if total_registros:
+            print(f"Porcentaje de nuevos registros: {registros_insertados/total_registros*100:.2f}%")
 
     except Exception as e:
         print(f"\nError durante la migración: {str(e)}")
         execution_output = e
+        today_date = date.today()
         guardar_mensaje(f"Fecha de Ejecución: {today_date} | Estado Ejecución: {execution_output}\n")
         if 'conn' in locals():
             conn.rollback()
+        # Propagar el error: Prefect marca la tarea como fallida y el
+        # Programador de tareas recibe código de salida 1
+        raise
     finally:
         if 'conn' in locals():
             conn.close()

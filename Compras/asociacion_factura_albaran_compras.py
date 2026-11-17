@@ -133,6 +133,7 @@ def actualizar_facturas_en_albaranes():
         print(f"\n❌ Error durante el proceso: {str(e)}")
         if conn:
             conn.rollback()
+        raise  # que Prefect / el Programador de tareas vean el fallo
     finally:
         if conn:
             conn.close()

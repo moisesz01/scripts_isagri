@@ -269,6 +269,23 @@ def descargar_tabla(url, destino):
                 f.write(bloque)
 
 
+# Paradox marca un entero vacío con el mínimo de 32 bits. La librería pxlib de
+# Linux lo devuelve tal cual y la de Windows como None: sin esta conversión, la
+# VM y el Programador de tareas de Windows se reescribían la tabla el uno al otro.
+NULO_ENTERO_PARADOX = -2147483648
+
+
+def _texto_paradox(texto):
+    """Los .DB guardan el texto en cp1252 (la codificación de Windows), donde
+    0x80 es '€', 0x8A 'Š', 0x93/0x94 las comillas “ ”... Se leen como latin-1,
+    que nunca falla, y aquí se reinterpretan. Si el texto tiene un byte que no
+    existe en cp1252 se deja como estaba."""
+    try:
+        return texto.encode("latin-1").decode("cp1252")
+    except UnicodeError:
+        return texto
+
+
 def leer_tabla(ruta, columnas_deseadas):
     """Lee la tabla Paradox. Devuelve (columnas_encontradas, filas). Cada
     registro se lee una sola vez (antes se recorría la tabla una vez por columna)."""
@@ -290,9 +307,14 @@ def leer_tabla(ruta, columnas_deseadas):
             fila = []
             for col in keys:
                 try:
-                    fila.append(row[col])
+                    valor = row[col]
                 except Exception:
-                    fila.append("")
+                    valor = ""
+                if isinstance(valor, str):
+                    valor = _texto_paradox(valor)
+                elif valor == NULO_ENTERO_PARADOX and isinstance(valor, int):
+                    valor = None
+                fila.append(valor)
             filas.append(fila)
     finally:
         table.close()
@@ -377,17 +399,34 @@ def sincronizar_tabla(cnxn, tabla, keys, filas_paradox):
         cursor.close()
 
 
-def procesar(tabla):
-    """Descarga, lee y sincroniza una tabla. Cada tabla va en su propia transacción."""
+# Los tres pasos de procesar() por separado: orquestacion/flujos.py los
+# envuelve como tareas de Prefect para ver en el dashboard cuál falló.
+def paso_descargar(tabla):
+    """Descarga la tabla Paradox a TMP_DIR y devuelve la ruta local."""
     os.makedirs(TMP_DIR, exist_ok=True)
     ruta = os.path.join(TMP_DIR, tabla.nombre + ".DB")
     print(f"Descargando {tabla.nombre}.DB")
     descargar_tabla(tabla.url, ruta)
+    return ruta
+
+
+def paso_leer(tabla, ruta):
     print(f"Leyendo {tabla.nombre}.DB")
-    keys, filas = leer_tabla(ruta, tabla.columnas)
+    return leer_tabla(ruta, tabla.columnas)
+
+
+def paso_sincronizar(tabla, keys, filas):
+    """Cada tabla va en su propia transacción."""
     print(f"Sincronizando {tabla.tabla_sql} ({len(filas)} filas en Paradox)")
     with conectar_db() as cnxn:
         return sincronizar_tabla(cnxn, tabla, keys, filas)
+
+
+def procesar(tabla):
+    """Descarga, lee y sincroniza una tabla."""
+    ruta = paso_descargar(tabla)
+    keys, filas = paso_leer(tabla, ruta)
+    return paso_sincronizar(tabla, keys, filas)
 
 
 # ---------------------------------------------------------------------------
